@@ -78,7 +78,11 @@ const downloadStreams = async (videoInfo, videoTempPath, audioTempPath) => {
     });
     audioStream.on("progress", (_, downloaded, total) => {
       const downloadedAudioMB = toMB(downloaded);
+      console.log("🔴 ~ file: main.js:81 ~ audioStream.on ~ downloadedAudioMB:", downloadedAudioMB)
+
       const totalAudioMB = toMB(total);
+      console.log("🔴 ~ file: main.js:84 ~ audioStream.on ~ totalAudioMB:", totalAudioMB)
+
       spinnerAudio.update({
         text: `Downloading Audio ${downloadedAudioMB} MB / ${totalAudioMB} MB`,
       });
