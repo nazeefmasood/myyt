@@ -42,7 +42,8 @@
     "nanospinner": "^1.1.0",
     "os": "^0.1.2",
     "path": "^0.12.7",
-    "ytdl-core": "^4.11.5",
+    "progress-estimator": "^0.3.1",
+    "youtube-dl-exec": "^3.0.7",
     "ytpl": "^2.3.0"
   }
 }

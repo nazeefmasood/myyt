@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 
-import ytdl from "ytdl-core";
+import youtubeDl from "youtube-dl-exec";
 import fs from "fs";
-import cliProgress from "cli-progress";
-import ffmpeg from "ffmpeg-static";
-import { exec } from "child_process";
 import chalk from "chalk";
 import emojiStrip from "emoji-strip";
 import os from "os";
 import path from "path";
 import inquirer from "inquirer";
-("process");
 import { Command } from "commander";
 import chalkAnimation from "chalk-animation";
 import { createSpinner } from "nanospinner";
+import { exec } from "child_process";
+import ffmpegPath from "ffmpeg-static"; // Import ffmpeg-static
+import createLogger from "progress-estimator"; // Import progress-estimator
+
 const program = new Command();
 program.version("1.0.0");
-const toMB = (i) => (i / 1024 / 1024).toFixed(2);
+
+const logger = createLogger(); // Initialize the progress-estimator
+
 program.description("Download a video from YouTube").action(async () => {
   const { url } = await inquirer.prompt([
     {
@@ -42,104 +44,14 @@ const createDirectoryIfNotExists = (directory) => {
   }
 };
 
-const downloadStreams = async (videoInfo, videoTempPath, audioTempPath) => {
-  const spinnerVideo = createSpinner("Downloading Video....").start();
-  const spinnerAudio = createSpinner("Downloading Audio....").start();
-  try {
-    const videoFormat = ytdl.chooseFormat(videoInfo.formats, {
-      quality: "highestvideo",
-    });
-    const audioFormat = ytdl.chooseFormat(videoInfo.formats, {
-      quality: "highestaudio",
-    });
-
-    if (!videoFormat || !audioFormat) {
-      throw new Error("Failed to get video or audio format");
-    }
-
-    const expectedVideoSize = toMB(videoFormat.contentLength);
-
-    const videoStream = ytdl.downloadFromInfo(videoInfo, {
-      format: videoFormat,
-    });
-    const audioStream = ytdl.downloadFromInfo(videoInfo, {
-      format: audioFormat,
-    });
-
-    videoStream.pipe(fs.createWriteStream(videoTempPath));
-    audioStream.pipe(fs.createWriteStream(audioTempPath));
-
-    videoStream.on("progress", (_, downloaded, total) => {
-      const downloadedVideoMB = toMB(downloaded);
-      const totalVideoMB = toMB(total);
-      spinnerVideo.update({
-        text: `Downloading Video ${downloadedVideoMB} MB / ${totalVideoMB} MB`,
-      });
-    });
-    audioStream.on("progress", (_, downloaded, total) => {
-      const downloadedAudioMB = toMB(downloaded);
-      console.log("🔴 ~ file: main.js:81 ~ audioStream.on ~ downloadedAudioMB:", downloadedAudioMB)
-
-      const totalAudioMB = toMB(total);
-      console.log("🔴 ~ file: main.js:84 ~ audioStream.on ~ totalAudioMB:", totalAudioMB)
-
-      spinnerAudio.update({
-        text: `Downloading Audio ${downloadedAudioMB} MB / ${totalAudioMB} MB`,
-      });
-    });
-
-    await Promise.all([
-      new Promise((resolve) => {
-        videoStream.on("end", () => {
-          spinnerVideo.success("Video Downloaded Completed");
-          resolve();
-        });
-      }),
-      new Promise((resolve) => {
-        audioStream.on("end", () => {
-          spinnerAudio.success("Audio Downloaded Completed");
-          resolve();
-        });
-      }),
-    ]);
-  } catch (error) {
-    spinnerVideo.error("Video Download failed");
-    spinnerAudio.error("Audio Download failed");
-    throw error;
-  }
-};
-
-const mergeStreams = async (
-  videoTempPath,
-  audioTempPath,
-  outputPath,
-  videoTitle
-) => {
-  const spinnerMerge = createSpinner("Merging....").start();
-  try {
-    const mergeCommand = `"${ffmpeg}" -i "${videoTempPath}" -i "${audioTempPath}" -c:v copy -c:a aac "${outputPath}"`;
-    await exec(mergeCommand, (error, stdout, stderr) => {
-      if (error) {
-        console.log(chalk.redBright(`Merging unsuccessful`));
-        spinnerMerge.error();
-      } else {
-        spinnerMerge.success();
-        fs.unlinkSync(videoTempPath);
-        fs.unlinkSync(audioTempPath);
-        rainBowTextAnimation(`\nDownload Completed ${videoTitle}\n`);
-      }
-    });
-  } catch (error) {
-    spinnerMerge.error("Error occurred while merging streams:", error);
-    throw error;
-  }
-};
 const sleep = (ms = 2000) => new Promise((res) => setTimeout(res, ms));
+
 const rainBowTextAnimation = async (text) => {
   const rainbowTitle = chalkAnimation.rainbow(text);
   await sleep();
   rainbowTitle.stop();
 };
+
 const downloadVideo = async (url) => {
   try {
     if (!url) {
@@ -149,45 +61,96 @@ const downloadVideo = async (url) => {
     rainBowTextAnimation(
       "\nYoutube Video Downloader Developed by Nazeef Masood\n"
     );
-    const videoInfo = await ytdl.getInfo(url);
-
-    const videoTitle = videoInfo.videoDetails.title;
-    const cleanTitle = removeSpecialCharacters(emojiStrip(videoTitle));
 
     const downloadsFolder = getDownloadsFolder();
+    const tempFolder = path.join(downloadsFolder, "Youtube Downloads", "temp");
     const outputFolder = path.join(downloadsFolder, "Youtube Downloads");
-    const tempFolder = path.join(outputFolder, "temp");
-    const videoTempPath = path.join(tempFolder, `${cleanTitle}_video.mp4`);
-    const audioTempPath = path.join(tempFolder, `${cleanTitle}_audio.m4a`);
-    const outputPath = path.join(outputFolder, `${cleanTitle}.mp4`);
-
-    createDirectoryIfNotExists(outputFolder);
     createDirectoryIfNotExists(tempFolder);
+    createDirectoryIfNotExists(outputFolder);
+
+    const spinner = createSpinner("Getting video information...").start();
+    let videoInfo;
+    try {
+      videoInfo = await youtubeDl(url, {
+        dumpSingleJson: true,
+        noCheckCertificates: true,
+        noWarnings: true,
+        preferFreeFormats: true,
+        addHeader: [
+          "referer:youtube.com",
+          "user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        ],
+      });
+      spinner.success("Video information retrieved");
+    } catch (error) {
+      spinner.error("Failed to retrieve video information");
+      console.error(chalk.redBright("Error details:", error.message));
+      return;
+    }
+
+    const videoTitle = videoInfo.title;
+    const cleanTitle = removeSpecialCharacters(emojiStrip(videoTitle));
+    const videoPath = path.join(tempFolder, `${cleanTitle}.video.webm`);
+    const audioPath = path.join(tempFolder, `${cleanTitle}.audio.webm`);
+    const outputPath = path.join(outputFolder, `${cleanTitle}.mp4`);
 
     if (fs.existsSync(outputPath)) {
       const spinner = createSpinner(
-        "Output File found:  Deleting it and then re-downloading "
+        "Output file found: Deleting it and then re-downloading"
       ).start();
       fs.unlinkSync(outputPath);
       spinner.success();
     }
-    if (fs.existsSync(videoTempPath)) {
-      const spinnerVideo = createSpinner(
-        "Video File found:  Deleting it and then re-downloading "
-      ).start();
-      fs.unlinkSync(videoTempPath);
-      spinnerVideo.success();
-    }
-    if (fs.existsSync(audioTempPath)) {
-      const spinnerAudio = createSpinner(
-        "Audio File found:  Deleting it and then re-downloading "
-      ).start();
-      fs.unlinkSync(audioTempPath);
-      spinnerAudio.success();
-    }
 
-    await downloadStreams(videoInfo, videoTempPath, audioTempPath);
-    await mergeStreams(videoTempPath, audioTempPath, outputPath, videoTitle);
+    console.log(chalk.cyan("Starting download..."));
+
+    const videoDownload = youtubeDl(url, {
+      output: videoPath,
+      format: "bestvideo",
+      noCheckCertificates: true,
+      noWarnings: true,
+      preferFreeFormats: true,
+      addHeader: [
+        "referer:youtube.com",
+        "user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      ],
+    });
+
+    const audioDownload = youtubeDl(url, {
+      output: audioPath,
+      format: "bestaudio",
+      noCheckCertificates: true,
+      noWarnings: true,
+      preferFreeFormats: true,
+      addHeader: [
+        "referer:youtube.com",
+        "user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      ],
+    });
+
+    // Use progress-estimator for video and audio download
+    await logger(videoDownload, `Downloading video: ${videoTitle}`);
+    await logger(audioDownload, `Downloading audio: ${videoTitle}`);
+
+    console.log(chalk.green("\nDownload completed successfully!\n"));
+
+    // Merging video and audio using ffmpeg-static
+    const mergeSpinner = createSpinner("Merging audio and video...").start();
+    const mergeCommand = `${ffmpegPath} -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${outputPath}"`;
+
+    exec(mergeCommand, (error, stdout, stderr) => {
+      if (error) {
+        mergeSpinner.error("Failed to merge files");
+        console.error(chalk.redBright("Merge error:", error.message));
+        return;
+      }
+
+      mergeSpinner.success("Merge completed successfully!");
+      // Remove temp files
+      fs.unlinkSync(videoPath);
+      fs.unlinkSync(audioPath);
+      rainBowTextAnimation(`\nDownload Completed: ${videoTitle}\n`);
+    });
   } catch (error) {
     console.error(chalk.redBright("An error occurred:", error.message));
   }

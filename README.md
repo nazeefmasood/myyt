@@ -2,7 +2,7 @@
 
 ## Description
 
-myyt is a command-line interface (CLI) tool for downloading YouTube videos. It is built upon the ytdl-core package, providing a simple and efficient way to fetch videos from YouTube directly to your local system.
+myyt is a command-line interface (CLI) tool for downloading YouTube videos. It is built upon the youtube-dl-exec package, providing a simple and efficient way to fetch videos from YouTube directly to your local system.
 
 ## Features
 
@@ -38,7 +38,7 @@ myyt --help
 
 This project is built upon the following npm packages:
 
-- **ytdl-core**: A popular npm package for downloading YouTube videos.
+- **youtube-dl-exec**: A popular npm package for downloading YouTube videos.
 
 ## Contributing
 
