@@ -1,6 +1,6 @@
 {
   "name": "myyt",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A command-line tool to download videos and audio from YouTube",
   "type": "module",
   "main": "main.js",
