@@ -11,8 +11,8 @@ import { Command } from "commander";
 import chalkAnimation from "chalk-animation";
 import { createSpinner } from "nanospinner";
 import { exec } from "child_process";
-import ffmpegPath from "ffmpeg-static"; // Import ffmpeg-static
-import createLogger from "progress-estimator"; // Import progress-estimator
+import ffmpegPath from "ffmpeg-static"; 
+import createLogger from "progress-estimator"; 
 
 const program = new Command();
 program.version("1.0.0");
@@ -146,7 +146,6 @@ const downloadVideo = async (url) => {
       }
 
       mergeSpinner.success("Merge completed successfully!");
-      // Remove temp files
       fs.unlinkSync(videoPath);
       fs.unlinkSync(audioPath);
       rainBowTextAnimation(`\nDownload Completed: ${videoTitle}\n`);
